@@ -201,22 +201,22 @@ function TaskItem({task,cats,onToggle,onUpdate,onDelete}){
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────────
-function Dashboard({tasks,reminders,goals,cats,onTaskToggle,onTaskUpdate,onTaskDelete,isDesktop}){
-  const todayTasks=tasks.filter(t=>t.date===TODAY);
-  const doneTasks=todayTasks.filter(t=>t.done);
-  const activeTasks=todayTasks.filter(t=>!t.done).sort((a,b)=>{
+function Dashboard({tasks,reminders,goals,cats,onTaskToggle,onTaskUpdate,onTaskDelete,isDesktop,selectedDate}){
+  const dateTasks=tasks.filter(t=>t.date===selectedDate);
+  const doneTasks=dateTasks.filter(t=>t.done);
+  const activeTasks=dateTasks.filter(t=>!t.done).sort((a,b)=>{
     const order={High:0,Medium:1,Low:2};
     return(order[a.priority]!==undefined?order[a.priority]:3)-(order[b.priority]!==undefined?order[b.priority]:3);
   });
   const[doneOpen,setDoneOpen]=useState(false);
 
-  // Countdown data
+  // Countdown data — always time-based from now
   const now=new Date();
   const nextReminder=reminders.filter(r=>!r.dismissed&&new Date(r.datetime)>now).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime))[0];
   const upcomingEvents=reminders.filter(r=>!r.dismissed&&new Date(r.datetime)>now).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)).slice(0,3);
 
-  // Coming Up — next 3 upcoming (include today)
-  const comingUp=reminders.filter(r=>!r.dismissed).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)).slice(0,3);
+  // Coming Up — reminders on selectedDate
+  const comingUp=reminders.filter(r=>!r.dismissed&&r.datetime.split('T')[0]===selectedDate).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
 
   return(
     <div style={{padding:isDesktop?'20px 24px':'12px 14px',paddingBottom:isDesktop?24:80}}>
@@ -237,7 +237,7 @@ function Dashboard({tasks,reminders,goals,cats,onTaskToggle,onTaskUpdate,onTaskD
       <div className="section-label">AT A GLANCE</div>
       <div style={{display:'grid',gridTemplateColumns:isDesktop?'repeat(4,1fr)':'1fr 1fr',gap:10,marginBottom:isDesktop?24:16}}>
         <CountdownCard label="Next Reminder" value={nextReminder?fmtCountdown(msUntil(nextReminder.datetime)):'—'} sub={nextReminder?nextReminder.title:null} color={COLORS.te}/>
-        <CountdownCard label="Tasks Today" value={`${doneTasks.length}/${todayTasks.length}`} sub="completed" color={COLORS.bl}/>
+        <CountdownCard label="Tasks" value={`${doneTasks.length}/${dateTasks.length}`} sub="completed" color={COLORS.bl}/>
         <CountdownCard label="Active Goals" value={goals.filter(g=>!g.completed).length} sub="in progress" color={COLORS.pu}/>
         <CountdownCard label="Reminders" value={reminders.filter(r=>!r.dismissed).length} sub="upcoming" color={COLORS.yl}/>
       </div>
@@ -480,13 +480,17 @@ function ReminderCard({reminder,cats,onClick}){
   );
 }
 
-function RemindersModule({reminders,setReminders,cats}){
+function RemindersModule({reminders,setReminders,cats,selectedDate}){
   var[selected,setSelected]=useState(null);
   var now=new Date();
-  var active=reminders.filter(function(r){return!r.dismissed;});
-  var overdue=active.filter(function(r){return new Date(r.datetime)<now;}).sort(function(a,b){return new Date(a.datetime)-new Date(b.datetime);});
-  var upcoming=active.filter(function(r){return new Date(r.datetime)>=now;}).sort(function(a,b){return new Date(a.datetime)-new Date(b.datetime);});
-  var dismissed=reminders.filter(function(r){return r.dismissed;});
+  var isToday=selectedDate===TODAY;
+  // Filter to reminders on selectedDate
+  var dateReminders=reminders.filter(function(r){return r.datetime.split('T')[0]===selectedDate;});
+  var active=dateReminders.filter(function(r){return!r.dismissed;});
+  var overdue=isToday?reminders.filter(function(r){return!r.dismissed&&new Date(r.datetime)<now&&r.datetime.split('T')[0]!==selectedDate;}):[];
+  var upcoming=active.filter(function(r){return new Date(r.datetime)>=now||!isToday;}).sort(function(a,b){return new Date(a.datetime)-new Date(b.datetime);});
+  var pastItems=!isToday?active.filter(function(r){return new Date(r.datetime)<now;}).sort(function(a,b){return new Date(a.datetime)-new Date(b.datetime);}):[];
+  var dismissed=dateReminders.filter(function(r){return r.dismissed;});
 
   function handleSave(updated){setReminders(reminders.map(function(r){return r.id===updated.id?{...updated,updatedAt:Date.now()}:r;}));}
   function handleDelete(id){setReminders(reminders.filter(function(r){return r.id!==id;}));}
@@ -507,7 +511,7 @@ function RemindersModule({reminders,setReminders,cats}){
 
   return(
     <div style={{padding:'12px 14px',paddingBottom:80}}>
-      {/* Overdue */}
+      {/* Overdue — only shown on today for items from other dates */}
       {overdue.length>0&&(
         <div style={{marginBottom:16}}>
           <div className="section-label" style={{color:COLORS.rd}}>⚠ OVERDUE ({overdue.length})</div>
@@ -515,12 +519,20 @@ function RemindersModule({reminders,setReminders,cats}){
         </div>
       )}
 
-      {/* Upcoming */}
+      {/* Past items on non-today dates */}
+      {pastItems.length>0&&(
+        <div style={{marginBottom:16}}>
+          <div className="section-label" style={{color:COLORS.mu}}>EARLIER THIS DAY ({pastItems.length})</div>
+          {pastItems.map(function(r){return <ReminderCard key={r.id} reminder={r} cats={cats} onClick={function(){setSelected(r.id);}}/>;} )}
+        </div>
+      )}
+
+      {/* Upcoming / scheduled for this date */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-        <div className="section-label" style={{marginBottom:0}}>UPCOMING ({upcoming.length})</div>
+        <div className="section-label" style={{marginBottom:0}}>{isToday?'UPCOMING':'SCHEDULED'} ({upcoming.length})</div>
       </div>
-      {upcoming.length===0&&overdue.length===0&&(
-        <div className="card" style={{textAlign:'center',color:COLORS.mu,padding:20}}>No active reminders. Tap + to add one.</div>
+      {upcoming.length===0&&overdue.length===0&&pastItems.length===0&&dismissed.length===0&&(
+        <div className="card" style={{textAlign:'center',color:COLORS.mu,padding:20}}>No reminders for this date.</div>
       )}
       {upcoming.map(function(r){return <ReminderCard key={r.id} reminder={r} cats={cats} onClick={function(){setSelected(r.id);}}/>;} )}
 
@@ -784,9 +796,12 @@ function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport
             <input type="password" value={s.geminiApiKey} onChange={e=>setS({...s,geminiApiKey:e.target.value})} placeholder="AIza..." style={{marginBottom:12}}/>
             <div className="section-label">Groq API Key</div>
             <input type="password" value={s.groqApiKey} onChange={e=>setS({...s,groqApiKey:e.target.value})} placeholder="gsk_..." style={{marginBottom:12}}/>
-            <div style={{fontSize:12,color:COLORS.mu,padding:'8px 10px',background:COLORS.bo,borderRadius:6}}>
-              AI: <span style={{color:s.aiEngine==='gemini'?COLORS.te:COLORS.pu}}>● {s.aiEngine==='gemini'?'Gemini':'Groq'}</span>
+            <div className="section-label">AI Engine</div>
+            <div style={{display:'flex',gap:8,marginBottom:4}}>
+              <button onClick={()=>setS({...s,aiEngine:'gemini',aiEngineForcedGroqUntil:null})} style={{flex:1,padding:'9px 0',background:s.aiEngine==='gemini'?COLORS.te:COLORS.bo,color:s.aiEngine==='gemini'?'#111':COLORS.mu,fontWeight:s.aiEngine==='gemini'?'bold':'normal'}}>● Gemini</button>
+              <button onClick={()=>setS({...s,aiEngine:'groq',aiEngineForcedGroqUntil:null})} style={{flex:1,padding:'9px 0',background:s.aiEngine==='groq'?COLORS.pu:COLORS.bo,color:s.aiEngine==='groq'?'#fff':COLORS.mu,fontWeight:s.aiEngine==='groq'?'bold':'normal'}}>● Groq</button>
             </div>
+            <div style={{fontSize:11,color:COLORS.mu,marginBottom:4}}>Groq is free and fast. Gemini auto-falls back to Groq on quota errors.</div>
           </div>
         )}
 
@@ -864,17 +879,17 @@ function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport
 }
 
 // ─── QUICK ADD MODAL ─────────────────────────────────────────────
-function QuickAddModal({cats,onAddTask,onAddReminder,onAddGoal,onClose}){
+function QuickAddModal({cats,onAddTask,onAddReminder,onAddGoal,onClose,selectedDate}){
   const[type,setType]=useState('Task');
   // Task fields
   const[tText,setTText]=useState('');
   const[tPri,setTPri]=useState('Medium');
   const[tCat,setTCat]=useState(cats[0]?cats[0].label:'Personal');
   const[tNotes,setTNotes]=useState('');
-  const[tDate,setTDate]=useState(TODAY);
+  const[tDate,setTDate]=useState(selectedDate||TODAY);
   // Reminder fields
   const[rTitle,setRTitle]=useState('');
-  const[rDT,setRDT]=useState(TODAY+'T09:00');
+  const[rDT,setRDT]=useState((selectedDate||TODAY)+'T09:00');
   const[rRec,setRRec]=useState('none');
   const[rCat,setRCat]=useState(cats[0]?cats[0].label:'Personal');
   const[rNotes,setRNotes]=useState('');
@@ -1282,6 +1297,31 @@ function TopNav({tab,setTab,hasOverdue}){
 }
 
 // ─── APP ─────────────────────────────────────────────────────────
+// ─── DATE NAVIGATOR ──────────────────────────────────────────────
+function DateNav({selectedDate,setSelectedDate}){
+  function shift(days){
+    var d=new Date(selectedDate+'T12:00:00');
+    d.setDate(d.getDate()+days);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  }
+  var isToday=selectedDate===TODAY;
+  var d=new Date(selectedDate+'T12:00:00');
+  var isFuture=selectedDate>TODAY;
+  var label=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  return(
+    <div style={{background:COLORS.su,borderBottom:'1px solid '+COLORS.bo,padding:'7px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+      <button onClick={function(){shift(-1);}} style={{background:COLORS.bo,color:COLORS.tx,width:34,height:34,borderRadius:8,fontSize:20}}>‹</button>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        {!isToday&&isFuture&&<span style={{fontSize:10,color:COLORS.yl,letterSpacing:1,textTransform:'uppercase'}}>Future</span>}
+        {!isToday&&!isFuture&&<span style={{fontSize:10,color:COLORS.mu,letterSpacing:1,textTransform:'uppercase'}}>Past</span>}
+        <span style={{fontSize:14,fontWeight:'bold',color:isToday?COLORS.te:COLORS.tx}}>{label}</span>
+        {!isToday&&<button onClick={function(){setSelectedDate(TODAY);}} style={{background:COLORS.te,color:'#111',padding:'2px 9px',borderRadius:10,fontSize:11,fontWeight:'bold'}}>Today</button>}
+      </div>
+      <button onClick={function(){shift(1);}} style={{background:COLORS.bo,color:COLORS.tx,width:34,height:34,borderRadius:8,fontSize:20}}>›</button>
+    </div>
+  );
+}
+
 function App(){
   const w=useWindowWidth();
   const isDesktop=w>=900;
@@ -1290,6 +1330,7 @@ function App(){
   const[showSettings,setShowSettings]=useState(false);
   const[showAdd,setShowAdd]=useState(false);
   const[showAI,setShowAI]=useState(false);
+  const[selectedDate,setSelectedDate]=useState(TODAY);
   const[storageReady,setStorageReady]=useState(false);
   const[tasks,setTasksRaw]=useState(SAMPLE_TASKS);
   const[reminders,setRemindersRaw]=useState(SAMPLE_REMINDERS);
@@ -1460,10 +1501,13 @@ function App(){
           </div>
         )}
 
+        {/* Date Navigator — sticky, all tabs */}
+        <DateNav selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>
+
         {/* Content area */}
         <div style={{flex:1,overflowY:'auto',maxWidth:isDesktop?'none':600,margin:isDesktop?0:'0 auto',width:'100%'}}>
-          {tab==='dashboard'&&<Dashboard tasks={tasks} reminders={reminders} goals={goals} cats={cats} onTaskToggle={handleTaskToggle} onTaskUpdate={handleTaskUpdate} onTaskDelete={handleTaskDelete} isDesktop={isDesktop}/>}
-          {tab==='reminders'&&<RemindersModule reminders={reminders} setReminders={setReminders} cats={cats} isDesktop={isDesktop}/>}
+          {tab==='dashboard'&&<Dashboard tasks={tasks} reminders={reminders} goals={goals} cats={cats} onTaskToggle={handleTaskToggle} onTaskUpdate={handleTaskUpdate} onTaskDelete={handleTaskDelete} isDesktop={isDesktop} selectedDate={selectedDate}/>}
+          {tab==='reminders'&&<RemindersModule reminders={reminders} setReminders={setReminders} cats={cats} isDesktop={isDesktop} selectedDate={selectedDate}/>}
           {tab==='goals'&&<GoalsModule goals={goals} setGoals={setGoals} cats={cats} isDesktop={isDesktop}/>}
           {tab==='notes'&&<NotesModule notes={notes} onAdd={handleNoteAdd} onDelete={handleNoteDelete} isDesktop={isDesktop}/>}
         </div>
@@ -1476,7 +1520,7 @@ function App(){
 
       {showAI&&<AIAssistant settings={settings} onSettingsUpdate={setSettings} tasks={tasks} reminders={reminders} goals={goals} notes={notes} cats={cats} onClose={()=>setShowAI(false)}/>}
       {showSettings&&<SettingsModal settings={settings} onSave={setSettings} cats={cats} onCatSave={setCats} onClose={()=>setShowSettings(false)} onExport={handleExport} onImport={handleImport} onPush={pushToGist} onPull={pullFromGist} onSyncSave={function(v){setSettings({...settings,...v});}} syncStatus={syncStatus} syncMsg={syncMsg} lastSynced={lastSynced}/>}
-      {showAdd&&<QuickAddModal cats={cats} onAddTask={t=>{setTasks([...tasks,t]);}} onAddReminder={r=>{setReminders([...reminders,r]);}} onAddGoal={g=>{setGoals([...goals,g]);}} onClose={()=>setShowAdd(false)}/>}
+      {showAdd&&<QuickAddModal cats={cats} selectedDate={selectedDate} onAddTask={t=>{setTasks([...tasks,t]);}} onAddReminder={r=>{setReminders([...reminders,r]);}} onAddGoal={g=>{setGoals([...goals,g]);}} onClose={()=>setShowAdd(false)}/>}
     </div>
   );
 }
