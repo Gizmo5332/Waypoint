@@ -3,31 +3,31 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="theme-color" content="#111318"/>
+<meta name="theme-color" content="#0d1117"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>🧭 WAYPOINT</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{background:#111318;color:#dde1ee;font-family:'Courier New',Courier,monospace;min-height:100vh;overflow-x:hidden;}
+body{background:#0d1117;color:#eef1fa;font-family:'Courier New',Courier,monospace;min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:4px;height:4px;}
-::-webkit-scrollbar-track{background:#111318;}
-::-webkit-scrollbar-thumb{background:#252836;border-radius:2px;}
-input,textarea,select{font-family:'Courier New',Courier,monospace;color:#dde1ee;background:#252836;border:1px solid #252836;border-radius:6px;padding:8px 10px;font-size:14px;outline:none;width:100%;}
+::-webkit-scrollbar-track{background:#0d1117;}
+::-webkit-scrollbar-thumb{background:#2e3347;border-radius:2px;}
+input,textarea,select{font-family:'Courier New',Courier,monospace;color:#eef1fa;background:#1a1f2e;border:1px solid #2e3347;border-radius:6px;padding:8px 10px;font-size:14px;outline:none;width:100%;}
 input:focus,textarea:focus,select:focus{border-color:#14b8a6;}
 button{font-family:'Courier New',Courier,monospace;cursor:pointer;border:none;border-radius:6px;font-size:13px;transition:opacity .15s,transform .1s;}
 button:active{transform:scale(.96);}
 .flash{animation:flash .25s ease;}
 @keyframes flash{0%{opacity:1;}50%{opacity:.5;}100%{opacity:1;}}
 .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:bold;letter-spacing:.5px;}
-.pill{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid #252836;background:transparent;color:#52566a;transition:all .15s;}
-.pill.active{background:#14b8a6;color:#111318;border-color:#14b8a6;font-weight:bold;}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-end;justify-content:center;}
-.modal-box{background:#1c1f2b;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:20px;}
+.pill{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid #2e3347;background:transparent;color:#8b90a8;transition:all .15s;}
+.pill.active{background:#14b8a6;color:#0d1117;border-color:#14b8a6;font-weight:bold;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;display:flex;align-items:flex-end;justify-content:center;}
+.modal-box{background:#161b27;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:20px;}
 .modal-box.center{border-radius:16px;align-self:center;margin:16px;}
-.modal-handle{width:40px;height:4px;background:#252836;border-radius:2px;margin:0 auto 16px;}
-.section-label{font-size:11px;letter-spacing:1.5px;color:#52566a;text-transform:uppercase;margin-bottom:8px;}
-.card{background:#1c1f2b;border:1px solid #252836;border-radius:10px;padding:12px 14px;}
+.modal-handle{width:40px;height:4px;background:#2e3347;border-radius:2px;margin:0 auto 16px;}
+.section-label{font-size:11px;letter-spacing:1.5px;color:#8b90a8;text-transform:uppercase;margin-bottom:8px;}
+.card{background:#161b27;border:1px solid #2e3347;border-radius:10px;padding:12px 14px;}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
 </style>
 </head>
@@ -40,7 +40,7 @@ button:active{transform:scale(.96);}
 const {useState,useEffect,useRef,useCallback} = React;
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
-const COLORS={bg:'#111318',su:'#181b24',ca:'#1c1f2b',bo:'#252836',te:'#14b8a6',gr:'#22c55e',rd:'#ef4444',yl:'#eab308',bl:'#3b82f6',pu:'#a855f7',tx:'#dde1ee',mu:'#52566a'};
+const COLORS={bg:'#0d1117',su:'#161b27',ca:'#1a1f2e',bo:'#2e3347',te:'#14b8a6',gr:'#22c55e',rd:'#ef4444',yl:'#eab308',bl:'#3b82f6',pu:'#a855f7',tx:'#eef1fa',mu:'#8b90a8'};
 const TODAY=new Date().toISOString().split('T')[0];
 const PRIORITY_COLOR={High:COLORS.rd,Medium:COLORS.yl,Low:COLORS.gr};
 const GOAL_CAT_COLOR={'Health':COLORS.gr,'Financial':COLORS.yl,'Personal Growth':COLORS.te,'Family':COLORS.bl,'Career':COLORS.pu};
