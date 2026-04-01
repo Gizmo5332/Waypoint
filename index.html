@@ -1001,7 +1001,9 @@ Keep answers concise and practical. If asked about Waypoint data, use the contex
     setInput('');
     setLoading(true);
     var history=messages.slice(-8).map(function(m){return{role:m.role==='assistant'?'assistant':'user',content:m.text};});
-    var useGroq=settings.aiEngine==='groq'||(settings.aiEngineForcedGroqUntil&&new Date()<new Date(settings.aiEngineForcedGroqUntil));
+    var hasGroq=!!settings.groqApiKey;
+    var hasGemini=!!settings.geminiApiKey;
+    var useGroq=(settings.aiEngine==='groq'||(settings.aiEngineForcedGroqUntil&&new Date()<new Date(settings.aiEngineForcedGroqUntil))||!hasGemini)&&hasGroq;
 
     function handleReply(reply){
       setMessages(function(m){return[...m,{role:'assistant',text:reply}];});
@@ -1018,16 +1020,17 @@ Keep answers concise and practical. If asked about Waypoint data, use the contex
       setLoading(false);
     }
 
-    if(useGroq&&settings.groqApiKey){
+    if(useGroq){
       fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+settings.groqApiKey},body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:buildContext()},...history,{role:'user',content:text}],max_tokens:400})})
       .then(function(r){return r.json();})
       .then(function(d){
+        if(d.error){handleReply('Groq error: '+d.error.message);return;}
         var reply=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'No response.';
         handleReply(reply);
       })
       .catch(handleErr);
     } else if(settings.geminiApiKey){
-      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+settings.geminiApiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:buildContext()+'\n\nConversation so far:\n'+history.map(function(m){return m.role+': '+m.content;}).join('\n')+'\n\nuser: '+text}]}]})})
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+settings.geminiApiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:buildContext()+'\n\nConversation so far:\n'+history.map(function(m){return m.role+': '+m.content;}).join('\n')+'\n\nuser: '+text}]}]})})
       .then(function(r){
         var status=r.status;
         return r.json().then(function(d){return{status:status,data:d};});
@@ -1037,6 +1040,7 @@ Keep answers concise and practical. If asked about Waypoint data, use the contex
           var until=new Date();until.setHours(24,0,0,0);
           onSettingsUpdate({...settings,aiEngine:'groq',aiEngineForcedGroqUntil:until.toISOString()});
         }
+        if(res.data.error){handleReply('Gemini error: '+res.data.error.message);return;}
         var reply=(res.data.candidates&&res.data.candidates[0]&&res.data.candidates[0].content&&res.data.candidates[0].content.parts&&res.data.candidates[0].content.parts[0]&&res.data.candidates[0].content.parts[0].text)||'No response.';
         handleReply(reply);
       })
