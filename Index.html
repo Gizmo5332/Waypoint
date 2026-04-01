@@ -488,19 +488,19 @@ function RemindersModule({reminders,setReminders,cats}){
   var upcoming=active.filter(function(r){return new Date(r.datetime)>=now;}).sort(function(a,b){return new Date(a.datetime)-new Date(b.datetime);});
   var dismissed=reminders.filter(function(r){return r.dismissed;});
 
-  function handleSave(updated){setReminders(reminders.map(function(r){return r.id===updated.id?updated:r;}));}
+  function handleSave(updated){setReminders(reminders.map(function(r){return r.id===updated.id?{...updated,updatedAt:Date.now()}:r;}));}
   function handleDelete(id){setReminders(reminders.filter(function(r){return r.id!==id;}));}
   function handleDismiss(reminder){
     if(reminder.recurrence!=='none'){
       var newDT=nextOccurrence(reminder.datetime,reminder.recurrence);
-      setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,datetime:newDT,dismissed:false}:r;}));
+      setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,datetime:newDT,dismissed:false,updatedAt:Date.now()}:r;}));
     } else {
-      setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,dismissed:true}:r;}));
+      setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,dismissed:true,updatedAt:Date.now()}:r;}));
     }
   }
   function handleDefer(reminder,ms){
     var newDT=new Date(new Date(reminder.datetime).getTime()+ms).toISOString().slice(0,16);
-    setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,datetime:newDT,dismissed:false}:r;}));
+    setReminders(reminders.map(function(r){return r.id===reminder.id?{...r,datetime:newDT,dismissed:false,updatedAt:Date.now()}:r;}));
   }
 
   var selectedReminder=selected?reminders.find(function(r){return r.id===selected;}):null;
@@ -699,9 +699,9 @@ function GoalsModule({goals,setGoals,cats}){
   var active=goals.filter(function(g){return!g.completed;});
   var completed=goals.filter(function(g){return g.completed;});
 
-  function handleSave(updated){setGoals(goals.map(function(g){return g.id===updated.id?updated:g;}));}
+  function handleSave(updated){setGoals(goals.map(function(g){return g.id===updated.id?{...updated,updatedAt:Date.now()}:g;}));}
   function handleDelete(id){setGoals(goals.filter(function(g){return g.id!==id;}));}
-  function handleComplete(goal){setGoals(goals.map(function(g){return g.id===goal.id?{...g,completed:true,completedDate:new Date().toISOString()}:g;}));}
+  function handleComplete(goal){setGoals(goals.map(function(g){return g.id===goal.id?{...g,completed:true,completedDate:new Date().toISOString(),updatedAt:Date.now()}:g;}));}
 
   var selectedGoal=selected?goals.find(function(g){return g.id===selected;}):null;
 
@@ -729,7 +729,7 @@ function GoalsModule({goals,setGoals,cats}){
 }
 
 // ─── SETTINGS MODAL ──────────────────────────────────────────────
-function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport}){
+function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport,onPush,onPull,onSyncSave,syncStatus,syncMsg,lastSynced}){
   const[s,setS]=useState(settings);
   const[tab,setTab]=useState('app');
   const importRef=useRef();
@@ -800,8 +800,27 @@ function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport
 
         {tab==='sync'&&(
           <div>
-            <div style={{color:COLORS.mu,fontSize:13,padding:'12px',background:COLORS.bo,borderRadius:6,textAlign:'center'}}>
-              🔒 GitHub Gist Sync<br/><span style={{fontSize:11}}>Coming in Phase 2</span>
+            <div className="section-label">GitHub PAT (gist scope only)</div>
+            <input type="password" value={s.gistToken||''} onChange={function(e){setS({...s,gistToken:e.target.value.trim()});}} placeholder="ghp_..." style={{marginBottom:12}}/>
+            <div className="section-label">Gist ID (32-char from URL)</div>
+            <input value={s.gistId||''} onChange={function(e){setS({...s,gistId:e.target.value.trim()});}} placeholder="abc123..." style={{marginBottom:12}}/>
+            <button onClick={function(){onSyncSave({gistToken:s.gistToken,gistId:s.gistId});}} style={{background:COLORS.bo,color:COLORS.tx,padding:'8px 16px',width:'100%',marginBottom:14,border:'1px solid '+COLORS.bo}}>💾 Save Credentials</button>
+
+            <div style={{display:'flex',gap:8,marginBottom:14}}>
+              <button onClick={onPush} style={{flex:1,background:COLORS.te,color:'#111',padding:'10px 0',fontWeight:'bold'}}>⬆ Push</button>
+              <button onClick={onPull} style={{flex:1,background:COLORS.bl,color:'#fff',padding:'10px 0',fontWeight:'bold'}}>⬇ Pull</button>
+            </div>
+
+            <div style={{padding:'10px 12px',background:COLORS.bo,borderRadius:8,fontSize:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{color:syncStatus==='ok'?COLORS.gr:syncStatus==='error'?COLORS.rd:syncStatus==='syncing'?COLORS.yl:COLORS.mu,fontSize:10}}>●</span>
+                <span style={{color:COLORS.tx}}>{syncStatus==='idle'?'Ready':syncMsg}</span>
+              </div>
+              {lastSynced&&<div style={{color:COLORS.mu,fontSize:11}}>Last synced: {new Date(lastSynced).toLocaleString()}</div>}
+              {!lastSynced&&<div style={{color:COLORS.mu,fontSize:11}}>Not synced yet this session</div>}
+            </div>
+            <div style={{color:COLORS.mu,fontSize:11,marginTop:10,lineHeight:1.5}}>
+              Auto-push runs every 5 min when credentials are saved. Pull merges remote data — most-recent record wins.
             </div>
           </div>
         )}
@@ -815,6 +834,7 @@ function SettingsModal({settings,onSave,cats,onCatSave,onClose,onExport,onImport
             </div>
             <div className="section-label">CHANGELOG</div>
             {[
+              {version:'v1.3',date:'2026-03-31',changes:['GitHub Gist sync — two-way push/pull via direct API calls (.then/.catch, Babel-safe)','Per-record merge: most recent updatedAt wins on pull','Auto-push every 5 min when PAT + Gist ID are configured','Settings → Sync tab: PAT input, Gist ID input, Save Credentials, Push/Pull buttons, status indicator, last-synced timestamp','updatedAt stamped on all item create/modify operations across tasks, reminders, goals, notes']},
               {version:'v1.2',date:'2026-03-31',changes:['Desktop/tablet layout at 900px breakpoint (Chromebook, laptop, tablet landscape)','Left sidebar: nav icons+labels, today summary panel, AI+Settings at bottom','Desktop header bar shows current tab name and date','Dashboard 2-col on desktop: tasks left, coming up + reminders right','At a Glance expands to 4-col row on desktop','Mobile layout unchanged below 900px']},
               {version:'v1.1',date:'2026-03-31',changes:['Goals module — full build replacing stub','Goal cards: title, category badge, progress bar + milestone count (x/y · %)','Target date with days-remaining indicator (yellow warning under 7 days)','Tap card to open detail modal','Milestone checklist in modal — tap each to toggle done','Actions: Mark Complete, Edit, Delete','Edit inline within detail modal — title, category, target date, notes','Images supported in detail modal','Completed goals shown faded/strikethrough with Hide/Show toggle']},
               {version:'v1.0',date:'2026-03-31',changes:['Reminders module — full build replacing stub','Compact cards with title, datetime, category badge, and countdown','Tap any card to open detail modal (full view + actions)','Actions: Dismiss, Defer, Edit, Delete','Defer mini-picker: 1h / 3h / 1d / 1w — chosen each time','Auto-reschedule on dismiss for recurring reminders (daily/weekly/monthly)','Overdue reminders shown in red section at top, separate from upcoming','Dismissed section shown below upcoming','Images supported in detail modal','Edit inline within detail modal']},
@@ -868,14 +888,14 @@ function QuickAddModal({cats,onAddTask,onAddReminder,onAddGoal,onClose}){
   function submit(){
     if(type==='Task'){
       if(!tText.trim())return;
-      onAddTask({id:Date.now(),text:tText.trim(),priority:tPri,category:tCat,done:false,date:tDate,notes:tNotes,images:[]});
+      onAddTask({id:Date.now(),text:tText.trim(),priority:tPri,category:tCat,done:false,date:tDate,notes:tNotes,images:[],updatedAt:Date.now()});
     } else if(type==='Reminder'){
       if(!rTitle.trim())return;
-      onAddReminder({id:Date.now(),title:rTitle.trim(),datetime:rDT,recurrence:rRec,category:rCat,notes:rNotes,images:[],dismissed:false});
+      onAddReminder({id:Date.now(),title:rTitle.trim(),datetime:rDT,recurrence:rRec,category:rCat,notes:rNotes,images:[],dismissed:false,updatedAt:Date.now()});
     } else {
       if(!gTitle.trim())return;
       const ms=gMiles.filter(m=>m.trim()).map((m,i)=>({id:i+1,text:m.trim(),done:false}));
-      onAddGoal({id:Date.now(),title:gTitle.trim(),category:gCat,targetDate:gDate,milestones:ms,notes:gNotes,images:[],completed:false,completedDate:null});
+      onAddGoal({id:Date.now(),title:gTitle.trim(),category:gCat,targetDate:gDate,milestones:ms,notes:gNotes,images:[],completed:false,completedDate:null,updatedAt:Date.now()});
     }
     onClose();
   }
@@ -1273,6 +1293,9 @@ function App(){
   const[cats,setCatsRaw]=useState(DEFAULT_CATEGORIES);
   const[settings,setSettingsRaw]=useState(DEFAULT_SETTINGS);
   const[notes,setNotesRaw]=useState([]);
+  const[syncStatus,setSyncStatus]=useState('idle');
+  const[syncMsg,setSyncMsg]=useState('');
+  const[lastSynced,setLastSynced]=useState(load('waypoint_lastSynced',null));
 
   // Load once on mount, then apply carry-forward
   useEffect(()=>{
@@ -1301,12 +1324,77 @@ function App(){
   function setCats(v){setCatsRaw(v);}
   function setSettings(v){setSettingsRaw(v);}
 
+  // ─── SYNC ────────────────────────────────────────────────────────
+  function mergeCollection(local,remote){
+    var merged={};
+    local.forEach(function(item){merged[item.id]=item;});
+    remote.forEach(function(item){
+      if(!merged[item.id]){merged[item.id]=item;}
+      else{var lt=merged[item.id].updatedAt||0;var rt=item.updatedAt||0;if(rt>lt)merged[item.id]=item;}
+    });
+    return Object.keys(merged).map(function(k){return merged[k];});
+  }
+
+  function pushToGist(){
+    var token=settings.gistToken;var gistId=settings.gistId;
+    if(!token||!gistId){setSyncStatus('error');setSyncMsg('Enter PAT + Gist ID in Sync settings first');return;}
+    setSyncStatus('syncing');setSyncMsg('Pushing...');
+    var payload={tasks:tasks,reminders:reminders,goals:goals,cats:cats,notes:notes,lastModified:new Date().toISOString()};
+    fetch('https://api.github.com/gists/'+gistId,{
+      method:'PATCH',
+      headers:{'Authorization':'token '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({files:{'waypoint-data.json':{content:JSON.stringify(payload,null,2)}}})
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.id){
+        var ts=new Date().toISOString();
+        setLastSynced(ts);saveAny('waypoint_lastSynced',ts);
+        setSyncStatus('ok');setSyncMsg('Pushed '+ts.slice(11,16)+'Z');
+      } else {
+        setSyncStatus('error');setSyncMsg(d.message||'Push failed');
+      }
+    })
+    .catch(function(){setSyncStatus('error');setSyncMsg('Network error');});
+  }
+
+  function pullFromGist(){
+    var token=settings.gistToken;var gistId=settings.gistId;
+    if(!token||!gistId){setSyncStatus('error');setSyncMsg('Enter PAT + Gist ID in Sync settings first');return;}
+    setSyncStatus('syncing');setSyncMsg('Pulling...');
+    fetch('https://api.github.com/gists/'+gistId,{headers:{'Authorization':'token '+token}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.files||!d.files['waypoint-data.json']){setSyncStatus('error');setSyncMsg('File not found in Gist');return;}
+      var remote;
+      try{remote=JSON.parse(d.files['waypoint-data.json'].content);}
+      catch(e){setSyncStatus('error');setSyncMsg('JSON parse error');return;}
+      if(remote.tasks)setTasksRaw(mergeCollection(tasks,remote.tasks));
+      if(remote.reminders)setRemindersRaw(mergeCollection(reminders,remote.reminders));
+      if(remote.goals)setGoalsRaw(mergeCollection(goals,remote.goals));
+      if(remote.notes)setNotesRaw(mergeCollection(notes,remote.notes));
+      var ts=new Date().toISOString();
+      setLastSynced(ts);saveAny('waypoint_lastSynced',ts);
+      setSyncStatus('ok');setSyncMsg('Pulled '+ts.slice(11,16)+'Z');
+    })
+    .catch(function(){setSyncStatus('error');setSyncMsg('Network error');});
+  }
+
+  // Ref keeps auto-sync interval pointing at latest push function
+  var autoSyncRef=useRef(null);
+  autoSyncRef.current=pushToGist;
+  useEffect(function(){
+    if(!settings.gistToken||!settings.gistId)return;
+    var iv=setInterval(function(){autoSyncRef.current();},5*60*1000);
+    return function(){clearInterval(iv);};
+  },[settings.gistToken,settings.gistId]);
+
   const hasOverdue=reminders.some(r=>!r.dismissed&&new Date(r.datetime)<new Date());
 
-  function handleTaskToggle(id){setTasks(tasks.map(t=>t.id===id?{...t,done:!t.done}:t));}
-  function handleTaskUpdate(task){setTasks(tasks.map(t=>t.id===task.id?task:t));}
+  function handleTaskToggle(id){setTasks(tasks.map(t=>t.id===id?{...t,done:!t.done,updatedAt:Date.now()}:t));}
+  function handleTaskUpdate(task){setTasks(tasks.map(t=>t.id===task.id?{...task,updatedAt:Date.now()}:t));}
   function handleTaskDelete(id){setTasks(tasks.filter(t=>t.id!==id));}
-  function handleNoteAdd(n){setNotesRaw(prev=>[n,...prev]);}
+  function handleNoteAdd(n){setNotesRaw(prev=>[{...n,updatedAt:Date.now()},...prev]);}
   function handleNoteDelete(id){setNotesRaw(prev=>prev.filter(n=>n.id!==id));}
 
   function handleExport(){
@@ -1383,7 +1471,7 @@ function App(){
       <button onClick={()=>setShowAdd(true)} style={{position:'fixed',bottom:isMobile?70:24,right:24,width:52,height:52,borderRadius:'50%',background:COLORS.te,color:'#111',fontSize:26,fontWeight:'bold',boxShadow:'0 4px 16px rgba(20,184,166,.4)',zIndex:200}}>+</button>
 
       {showAI&&<AIAssistant settings={settings} onSettingsUpdate={setSettings} tasks={tasks} reminders={reminders} goals={goals} notes={notes} cats={cats} onClose={()=>setShowAI(false)}/>}
-      {showSettings&&<SettingsModal settings={settings} onSave={setSettings} cats={cats} onCatSave={setCats} onClose={()=>setShowSettings(false)} onExport={handleExport} onImport={handleImport}/>}
+      {showSettings&&<SettingsModal settings={settings} onSave={setSettings} cats={cats} onCatSave={setCats} onClose={()=>setShowSettings(false)} onExport={handleExport} onImport={handleImport} onPush={pushToGist} onPull={pullFromGist} onSyncSave={function(v){setSettings({...settings,...v});}} syncStatus={syncStatus} syncMsg={syncMsg} lastSynced={lastSynced}/>}
       {showAdd&&<QuickAddModal cats={cats} onAddTask={t=>{setTasks([...tasks,t]);}} onAddReminder={r=>{setReminders([...reminders,r]);}} onAddGoal={g=>{setGoals([...goals,g]);}} onClose={()=>setShowAdd(false)}/>}
     </div>
   );
